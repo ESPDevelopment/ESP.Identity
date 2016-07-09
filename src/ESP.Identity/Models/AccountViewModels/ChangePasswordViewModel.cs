@@ -2,7 +2,7 @@
 
 namespace ESP.Identity.Models.AccountViewModels
 {
-    public class ChangePasswordViewModel
+    public class ChangePasswordViewModel : AccountViewModel
     {
         [Required]
         [DataType(DataType.Password)]

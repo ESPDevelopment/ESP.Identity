@@ -41,6 +41,9 @@ namespace ESP.Identity
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            // Add ESP token key
+            services.AddESPTokenKey(Configuration);
+
             // Add database context
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(Configuration.GetConnectionString("IdentityConnection")));

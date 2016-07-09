@@ -2,7 +2,7 @@
 
 namespace ESP.Identity.Models.AccountViewModels
 {
-    public class ResetPasswordViewModel
+    public class ResetPasswordViewModel : AccountViewModel
     {
         [Required]
         [EmailAddress]

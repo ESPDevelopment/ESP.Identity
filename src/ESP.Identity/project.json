@@ -48,7 +48,9 @@
       "type": "build"
     },
     "Microsoft.AspNetCore.Server.Kestrel.Https": "1.0.0",
-    "SendGrid.NetCore": "1.0.0-rtm-00002"
+    "SendGrid.NetCore": "1.0.0-rtm-00002",
+    "Microsoft.IdentityModel.Tokens": "5.0.0",
+    "System.IdentityModel.Tokens.Jwt": "5.0.0"
   },
 
   "tools": {

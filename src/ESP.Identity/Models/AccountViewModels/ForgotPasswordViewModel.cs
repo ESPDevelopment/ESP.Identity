@@ -2,11 +2,11 @@
 
 namespace ESP.Identity.Models.AccountViewModels
 {
-    public class ForgotPasswordViewModel
+    public class ForgotPasswordViewModel : AccountViewModel
     {
         [Required]
         [EmailAddress]
-        public string Email { get; set; }
+        public string EmailAddress { get; set; }
 
         [Required]
         [Url]

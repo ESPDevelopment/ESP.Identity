@@ -1,16 +1,17 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
+﻿using ESP.Identity.Models;
+using ESP.Identity.Models.AccountViewModels;
+using ESP.Identity.Security;
+using ESP.Identity.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
-using ESP.Identity.Models;
-using ESP.Identity.Models.AccountViewModels;
-using ESP.Identity.Services;
+using System;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace ESP.Identity.Controllers
 {
@@ -18,21 +19,24 @@ namespace ESP.Identity.Controllers
     [Authorize]
     public class AccountController : Controller
     {
-        private readonly UserManager<ApplicationUser> _userManager;
-        private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IEmailSender _emailSender;
-        private readonly ISmsSender _smsSender;
         private readonly ILogger _logger;
+        private readonly ISmsSender _smsSender;
+        private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly TokenAuthOptions _tokenAuthOptions;
+        private readonly UserManager<ApplicationUser> _userManager;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
+            TokenAuthOptions tokenAuthOptions,
             IEmailSender emailSender,
             ISmsSender smsSender,
             ILoggerFactory loggerFactory)
         {
-            _userManager = userManager;
             _signInManager = signInManager;
+            _tokenAuthOptions = tokenAuthOptions;
+            _userManager = userManager;
             _emailSender = emailSender;
             _smsSender = smsSender;
             _logger = loggerFactory.CreateLogger<AccountController>();
@@ -53,33 +57,51 @@ namespace ESP.Identity.Controllers
             // Validate model
             if (!ModelState.IsValid)
             {
-                LogModelErrors(3, "PostChangePasswordRoute");
-                return BadRequest(ModelState);
+                if (model == null) model = new ChangePasswordViewModel();
+                model.OldPassword = "***";
+                model.NewPassword = "***";
+                model.ConfirmPassword = "***";
+                model.Succeeded = false;
+                model.Message = "Invalid email address or password.";
+                return BadRequest(model);
             }
 
-            // Get currency user
+            // Get currenct user
             var user = await GetCurrentUserAsync();
             if (user == null)
             {
-                LogInformation(3, "PostChangePasswordRoute", "");
-                return StatusCode(409);
+                model.OldPassword = "***";
+                model.NewPassword = "***";
+                model.ConfirmPassword = "***";
+                model.Succeeded = false;
+                model.Message = "You must be logged in to change your password.";
+                return StatusCode(409, model);
             }
 
             // Attempt to change password
             var result = await _userManager.ChangePasswordAsync(user, model.OldPassword, model.NewPassword);
             if (!result.Succeeded)
             {
-                AddIdentityErrors(result);
                 LogIdentityErrors(3, "PostChangePasswordRoute", result);
-                return StatusCode(409);
+                AppendErrors(result, model);
+                model.OldPassword = "***";
+                model.NewPassword = "***";
+                model.ConfirmPassword = "***";
+                model.Succeeded = false;
+                model.Message = "Unable to change password.";
+                return StatusCode(409, model);
             }
-            LogInformation(3, "PostChangePasswordRoute", "User changed their password successfully.");
 
             // Signin the user
             await _signInManager.SignInAsync(user, isPersistent: false);
 
             // Return success
-            return Ok();
+            model.OldPassword = "***";
+            model.NewPassword = "***";
+            model.ConfirmPassword = "***";
+            model.Succeeded = true;
+            model.Message = "Password changed successfully.";
+            return Ok(model);
         }
 
         /// <summary>
@@ -135,15 +157,19 @@ namespace ESP.Identity.Controllers
             // Validate the model
             if (!ModelState.IsValid)
             {
-                LogModelErrors(1, "PostForgotPasswordRoute");
-                return BadRequest(ModelState);
+                if (model == null) model = new ForgotPasswordViewModel();
+                model.Succeeded = false;
+                model.Message = "Invalid email address.";
+                return BadRequest(model);
             }
 
             // Locate account
-            var user = await _userManager.FindByNameAsync(model.Email);
+            var user = await _userManager.FindByNameAsync(model.EmailAddress);
             if (user == null || !(await _userManager.IsEmailConfirmedAsync(user)))
             {
-                return StatusCode(409);
+                model.Succeeded = false;
+                model.Message = "Unable to initiate password reset.";
+                return StatusCode(409, model);
             }
 
             // Generate password reset token
@@ -158,12 +184,13 @@ namespace ESP.Identity.Controllers
 
             // Send password recovery email
             await _emailSender.SendEmailAsync(
-                model.Email,
+                model.EmailAddress,
                 "Reset Password",
                 $"Please reset your password by clicking here: <a href='{callbackUrl}'>link</a>. Here is the actual url: {callbackUrl}");
 
             // Return result
-            return Ok();
+            model.Succeeded = true;
+            return Ok(model);
         }
 
         /// <summary>
@@ -182,32 +209,56 @@ namespace ESP.Identity.Controllers
             // Validate the model
             if (!ModelState.IsValid)
             {
-                LogModelErrors(1, "PostLoginRoute");
-                return BadRequest(ModelState);
+                if (model == null) model = new LoginViewModel();
+                model.Password = "***";
+                model.Succeeded = false;
+                model.Message = "Invalid email address or password.";
+                return BadRequest(model);
             }
 
             // Attempt to login the user
             var result = await _signInManager.PasswordSignInAsync(model.EmailAddress, model.Password, model.RememberMe, lockoutOnFailure: false);
+            model.Succeeded = result.Succeeded;
 
-            // Return success
-            if (result.Succeeded)
+            // Hide password
+            model.Password = "***";
+
+            // Process result
+            if (result.Succeeded == false)
             {
-                LogInformation(1, "PostLoginRoute", "User authentication succeeded.");
-                return Ok();
+                // Set appropriate error message
+                if (result.IsLockedOut)
+                {
+                    model.Message = "This account has been locked out.";
+                    return StatusCode(409, model);
+                }
+                if (result.IsNotAllowed)
+                {
+                    model.Message = "Signin for this account is not allowed";
+                    return StatusCode(409, model);
+                }
+                if (result.RequiresTwoFactor)
+                {
+                    model.Message = "Signin for this account requires two-factor authentication.";
+                    return StatusCode(409, model);
+                }
+
+                // Provide default error message
+                model.Message = "Email address and password combination is not valid.";
+                return StatusCode(409, model);
             }
 
-            // Return failure
-            if (result.IsLockedOut)
+            // Construct a security token string
+            string token = await GetSecurityTokenAsString(model.EmailAddress);
+            if (token.Equals(string.Empty))
             {
-                LogInformation(2, "PostLoginRoute", "User account locked out.");
-                return StatusCode(409, ModelState);
+                model.Message = "An unexpected error occurred during sign in.";
+                return BadRequest(model);
             }
-            else
-            {
-                LogInformation(2, "PostLoginRoute", "User authentication failed.");
-                ModelState.AddModelError(string.Empty, "Invalid login attempt.");
-                return StatusCode(409, ModelState);
-            }
+
+            // Return the access token
+            model.access_token = token;
+            return Ok(model);
         }
 
         /// <summary>
@@ -216,6 +267,7 @@ namespace ESP.Identity.Controllers
         /// <returns>
         /// (200) Ok - Logoff succeeded
         /// </returns>
+        [AllowAnonymous]
         [HttpPost("api/v1/account/logoff", Name = "PostLogoffRoute")]
         public async Task<IActionResult> LogOff()
         {
@@ -241,8 +293,12 @@ namespace ESP.Identity.Controllers
             // Validate the model
             if (!ModelState.IsValid)
             {
-                LogModelErrors(3, "PostRegisterRoute");
-                return BadRequest(ModelState);
+                if (model == null) model = new RegisterViewModel();
+                model.Succeeded = false;
+                model.Message = "Invalid email address or password.";
+                model.Password = "***";
+                model.ConfirmPassword = "***";
+                return BadRequest(model);
             }
 
             // Attempt to create a new account
@@ -250,9 +306,12 @@ namespace ESP.Identity.Controllers
             var result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
             {
-                AddIdentityErrors(result);
-                LogIdentityErrors(3, "PostRegisterRoute", result);
-                return StatusCode(409, ModelState);
+                AppendErrors(result, model);
+                model.Succeeded = false;
+                model.Message = "Registration failed.";
+                model.Password = "***";
+                model.ConfirmPassword = "***";
+                return StatusCode(409, model);
             }
 
             // Generate email confirmation token
@@ -273,7 +332,10 @@ namespace ESP.Identity.Controllers
 
             // Return result
             LogInformation(3, "PostRegisterRoute", "User created a new account with password.");
-            return Ok();
+            model.Succeeded = true;
+            model.Password = "***";
+            model.ConfirmPassword = "***";
+            return Ok(model);
         }
 
         /// <summary>
@@ -292,28 +354,47 @@ namespace ESP.Identity.Controllers
             // Validate the model
             if (!ModelState.IsValid)
             {
-                LogModelErrors(3, "PostResetPasswordRoute");
-                return BadRequest(ModelState);
+                if (model == null) model = new ResetPasswordViewModel();
+                model.Succeeded = false;
+                model.Message = "Invalid email address, passwords, or reset code.";
+                model.Password = "***";
+                model.ConfirmPassword = "***";
+                model.Code = "***";
+                return BadRequest(model);
             }
 
             // Locate user account
             var user = await _userManager.FindByNameAsync(model.Email);
             if (user == null)
             {
-                return StatusCode(409);
+                model.Succeeded = false;
+                model.Message = "Unable to reset password.";
+                model.Password = "***";
+                model.ConfirmPassword = "***";
+                model.Code = "***";
+                return StatusCode(409, model);
             }
 
             // Reset password
             var result = await _userManager.ResetPasswordAsync(user, model.Code, model.Password);
             if (!result.Succeeded)
             {
-                AddIdentityErrors(result);
                 LogIdentityErrors(3, "PostResetPasswordRoute", result);
-                return StatusCode(409, ModelState);
+                AppendErrors(result, model);
+                model.Succeeded = false;
+                model.Message = "Unable to reset password.";
+                model.Password = "***";
+                model.ConfirmPassword = "***";
+                model.Code = "***";
+                return StatusCode(409, model);
             }
 
             // Return result
-            return Ok();
+            model.Succeeded = true;
+            model.Password = "***";
+            model.ConfirmPassword = "***";
+            model.Code = "***";
+            return Ok(model);
         }
 
         /// <summary>
@@ -336,14 +417,20 @@ namespace ESP.Identity.Controllers
         #region Helpers
 
         /// <summary>
-        /// Add identity action errors
+        /// Append identity errors to the view model
         /// </summary>
-        /// <param name="result">Identity action result</param>
-        private void AddIdentityErrors(IdentityResult result)
+        /// <param name="result">IdentityResult object</param>
+        /// <param name="model">An AccountViewModel object</param>
+        private void AppendErrors(IdentityResult result, AccountViewModel model)
         {
-            foreach (var error in result.Errors)
+            // Append errors to the request model
+            if (result != null && result.Errors != null)
             {
-                ModelState.AddModelError(string.Empty, error.Description);
+                model.Errors = new List<IdentityError>();
+                foreach (IdentityError error in result.Errors)
+                {
+                    model.Errors.Add(error);
+                }
             }
         }
 
@@ -354,6 +441,49 @@ namespace ESP.Identity.Controllers
         private Task<ApplicationUser> GetCurrentUserAsync()
         {
             return _userManager.GetUserAsync(HttpContext.User);
+        }
+
+        /// <summary>
+        /// Constructs a JWT security token for the specified username and returns it as
+        /// a base-64 encoded string that can be used in an Authorization header.
+        /// </summary>
+        /// <param name="username">Unique identifier for the user</param>
+        /// <returns>A base-64 encoded JWT token if successful, otherwise and empty string</returns>
+        private async Task<string> GetSecurityTokenAsString(string username)
+        {
+            // Retrieve the application user from the identity store
+            ApplicationUser user = await _userManager.FindByNameAsync(username);
+            if (user == null)
+            {
+                return string.Empty;
+            }
+
+            // Construct an identity with appropriate claims
+            IList<Claim> claims = await _userManager.GetClaimsAsync(user);
+            if (claims == null)
+            {
+                return string.Empty;
+            }
+            claims.Add(new Claim("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", user.Id));
+            claims.Add(new Claim("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", user.Email));
+            ClaimsIdentity identity = new ClaimsIdentity(claims);
+            if (identity == null)
+            {
+                return string.Empty;
+            }
+
+            // Create security token
+            DateTime issuedAt = DateTime.UtcNow;
+            JwtSecurityToken securityToken = new JwtSecurityToken(
+                issuer: _tokenAuthOptions.Issuer,
+                audience: _tokenAuthOptions.Audience,
+                signingCredentials: _tokenAuthOptions.SigningCredentials,
+                claims: claims,
+                notBefore: issuedAt,
+                expires: issuedAt.AddHours(2));
+            JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
+
+            return handler.WriteToken(securityToken);
         }
 
         /// <summary>
@@ -381,23 +511,6 @@ namespace ESP.Identity.Controllers
         {
             string uri = Url.RouteUrl(routeName);
             _logger.LogInformation(eventId, "[" + uri + "] " + message);
-        }
-
-        /// <summary>
-        /// Log model state errors
-        /// </summary>
-        /// <param name="eventId">The event id associated with the message.</param>
-        /// <param name="routeName">The name of the route in which the error occurred.</param>
-        private void LogModelErrors(int eventId, string routeName)
-        {
-            string uri = Url.RouteUrl(routeName);
-            foreach (var error in ModelState.Values)
-            {
-                foreach (var message in error.Errors)
-                {
-                    _logger.LogInformation(eventId, "[" + uri + "] " + message.ErrorMessage);
-                }
-            }
         }
 
         #endregion

@@ -2,7 +2,7 @@
 
 namespace ESP.Identity.Models.AccountViewModels
 {
-    public class RegisterViewModel
+    public class RegisterViewModel : AccountViewModel
     {
         [Required]
         [EmailAddress]
