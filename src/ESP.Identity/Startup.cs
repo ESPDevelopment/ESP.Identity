@@ -1,14 +1,15 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ESP.Identity.Data;
+using ESP.Identity.Extensions;
 using ESP.Identity.Models;
 using ESP.Identity.Services;
-using Microsoft.AspNetCore.Mvc;
 
 namespace ESP.Identity
 {
@@ -58,6 +59,9 @@ namespace ESP.Identity
             // Add MVC
             services.AddMvc();
 
+            // Add CORS support
+            services.AddCors();
+
             // Add application services
             services.AddTransient<IEmailSender, AuthMessageSender>();
             services.AddTransient<ISmsSender, AuthMessageSender>();
@@ -98,6 +102,9 @@ namespace ESP.Identity
 
             // Configure identity service
             app.UseIdentity();
+
+            // Use ESP-specific CORS
+            app.UseESPCors();
 
             // Configure MVC
             app.UseMvc(routes =>

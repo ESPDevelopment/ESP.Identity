@@ -187,7 +187,7 @@ namespace ESP.Identity.Controllers
             }
 
             // Attempt to login the user
-            var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, model.RememberMe, lockoutOnFailure: false);
+            var result = await _signInManager.PasswordSignInAsync(model.EmailAddress, model.Password, model.RememberMe, lockoutOnFailure: false);
 
             // Return success
             if (result.Succeeded)
@@ -246,7 +246,7 @@ namespace ESP.Identity.Controllers
             }
 
             // Attempt to create a new account
-            var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
+            var user = new ApplicationUser { UserName = model.EmailAddress, Email = model.EmailAddress };
             var result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
             {
@@ -267,7 +267,7 @@ namespace ESP.Identity.Controllers
 
             // Send confirmation email
             await _emailSender.SendEmailAsync(
-                model.Email,
+                model.EmailAddress,
                 "Confirm your account",
                 $"Please confirm your account by clicking this link: <a href='{callbackUrl}'>link</a>. Here is the actual Url: {callbackUrl}");
 
