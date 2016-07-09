@@ -47,7 +47,8 @@
       "version": "1.0.0-preview2-final",
       "type": "build"
     },
-    "Microsoft.AspNetCore.Server.Kestrel.Https": "1.0.0"
+    "Microsoft.AspNetCore.Server.Kestrel.Https": "1.0.0",
+    "SendGrid.NetCore": "1.0.0-rtm-00002"
   },
 
   "tools": {

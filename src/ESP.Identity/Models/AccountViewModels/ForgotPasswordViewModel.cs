@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace ESP.Identity.Models.AccountViewModels
 {
@@ -11,5 +7,9 @@ namespace ESP.Identity.Models.AccountViewModels
         [Required]
         [EmailAddress]
         public string Email { get; set; }
+
+        [Required]
+        [Url]
+        public string ReturnUrl { get; set; }
     }
 }

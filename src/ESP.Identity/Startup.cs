@@ -61,6 +61,7 @@ namespace ESP.Identity
             // Add application services
             services.AddTransient<IEmailSender, AuthMessageSender>();
             services.AddTransient<ISmsSender, AuthMessageSender>();
+            services.Configure<AuthMessageSenderOptions>(Configuration);
 
             // Add configuration singleton
             services.AddSingleton(Configuration);
