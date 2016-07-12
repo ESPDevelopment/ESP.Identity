@@ -4,6 +4,7 @@ namespace ESP.Identity.Services
 {
     public interface IEmailSender
     {
-        Task SendEmailAsync(string email, string subject, string message);
+        Task<bool> SendConfirmEmailAsync(string email, string confirmUrl);
+        Task<bool> SendForgotPasswordEmailAsync(string email, string returnUrl);
     }
 }

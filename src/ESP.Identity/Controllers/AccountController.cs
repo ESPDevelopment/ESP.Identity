@@ -107,38 +107,46 @@ namespace ESP.Identity.Controllers
         /// <summary>
         /// Confirms the email address for a new account
         /// </summary>
-        /// <param name="userId">User Id for the account to confirm</param>
-        /// <param name="code">Confirmation code</param>
+        /// <param name="model">ConfirmEmailViewModel containing the user id and code values.</param>
         /// <returns>
         /// (200) Ok - Account confirmation succeeded
         /// (400) Bad Request - Input values are not valid
         /// (409) Conflict - Account confirmation failed
         /// </returns>
-        [HttpGet("api/v1/account/confirmEmail", Name = "GetConfirmEmailRoute")]
+        [HttpPost("api/v1/account/confirmEmail", Name = "PostConfirmEmailRoute")]
         [AllowAnonymous]
-        public async Task<IActionResult> ConfirmEmail(string userId, string code)
+        public async Task<IActionResult> ConfirmEmail([FromBody]ConfirmEmailViewModel model)
         {
             // Validate input
-            if (userId == null || code == null)
+            if (!ModelState.IsValid)
             {
-                return BadRequest();
+                if (model == null) model = new ConfirmEmailViewModel();
+                model.Succeeded = false;
+                model.Message = "Invalid user or confirmation code.";
+                return BadRequest(model);
+
             }
 
             // Locate account to be validated
-            var user = await _userManager.FindByIdAsync(userId);
+            var user = await _userManager.FindByIdAsync(model.UserId);
             if (user == null)
             {
-                return StatusCode(409);
+                return StatusCode(409, new { Succeeded = false, Message = "Invalid user or confirmation code." });
             }
 
             // Confirm the account
-            var result = await _userManager.ConfirmEmailAsync(user, code);
+            var result = await _userManager.ConfirmEmailAsync(user, model.Code);
             if (!result.Succeeded)
             {
-                return StatusCode(409);
+                model.Succeeded = false;
+                model.Message = "Invalid user or confirmation code.";
+                return StatusCode(409, model);
             }
 
-            return Ok();
+            // Return success
+            model.Succeeded = true;
+            model.Message = "Email address successfully confirmed.";
+            return Ok(model);
         }
 
         /// <summary>
@@ -159,7 +167,7 @@ namespace ESP.Identity.Controllers
             {
                 if (model == null) model = new ForgotPasswordViewModel();
                 model.Succeeded = false;
-                model.Message = "Invalid email address.";
+                model.Message = "Unable to initiate password reset.";
                 return BadRequest(model);
             }
 
@@ -183,10 +191,13 @@ namespace ESP.Identity.Controllers
             var callbackUrl = model.ReturnUrl + queryString.ToUriComponent();
 
             // Send password recovery email
-            await _emailSender.SendEmailAsync(
-                model.EmailAddress,
-                "Reset Password",
-                $"Please reset your password by clicking here: <a href='{callbackUrl}'>link</a>. Here is the actual url: {callbackUrl}");
+            bool succeeded = await _emailSender.SendForgotPasswordEmailAsync(model.EmailAddress, callbackUrl);
+            if (!succeeded)
+            {
+                model.Succeeded = false;
+                model.Message = "Unable to send password recovery email.";
+                return StatusCode(409, model);
+            }
 
             // Return result
             model.Succeeded = true;
@@ -214,6 +225,19 @@ namespace ESP.Identity.Controllers
                 model.Succeeded = false;
                 model.Message = "Invalid email address or password.";
                 return BadRequest(model);
+            }
+
+            // Require the user to have a confirmed email before they can log on.
+            var user = await _userManager.FindByNameAsync(model.EmailAddress);
+            if (user != null)
+            {
+                if (!await _userManager.IsEmailConfirmedAsync(user))
+                {
+                    model.Password = "***";
+                    model.Succeeded = false;
+                    model.Message = "You must confirm your email address to sign in.";
+                    return StatusCode(409, model);
+                }
             }
 
             // Attempt to login the user
@@ -325,16 +349,63 @@ namespace ESP.Identity.Controllers
             var callbackUrl = model.ConfirmUrl + queryString.ToUriComponent();
 
             // Send confirmation email
-            await _emailSender.SendEmailAsync(
-                model.EmailAddress,
-                "Confirm your account",
-                $"Please confirm your account by clicking this link: <a href='{callbackUrl}'>link</a>. Here is the actual Url: {callbackUrl}");
+            await _emailSender.SendConfirmEmailAsync(model.EmailAddress, callbackUrl);
 
             // Return result
             LogInformation(3, "PostRegisterRoute", "User created a new account with password.");
             model.Succeeded = true;
             model.Password = "***";
             model.ConfirmPassword = "***";
+            return Ok(model);
+        }
+
+        /// <summary>
+        /// Resends an email confirmation message
+        /// </summary>
+        /// <param name="model">ResendConfirmationViewModel containing the email address value.</param>
+        /// <returns>
+        /// (200) Ok - Email confirmation message sent
+        /// (400) Bad Request - Input values not valid
+        /// (409) Conflict - Email confirmation message failed
+        /// </returns>
+        [HttpPost("api/v1/account/resendConfirmationEmail", Name = "PostResendConfirmationEmailRoute")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendConfirmationEmail([FromBody] ResendConfirmationViewModel model)
+        {
+            // Validate the model
+            if (!ModelState.IsValid)
+            {
+                if (model == null) model = new ResendConfirmationViewModel();
+                model.Succeeded = false;
+                model.Message = "Unable to resend email confirmation message.";
+                return BadRequest(model);
+            }
+
+            // Locate account
+            var user = await _userManager.FindByNameAsync(model.EmailAddress);
+            if (user == null || !(await _userManager.IsEmailConfirmedAsync(user)))
+            {
+                model.Succeeded = false;
+                model.Message = "Unable to resend email confirmation message.";
+                return StatusCode(409, model);
+            }
+
+            // Generate email confirmation token
+            var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+
+            // Generate password reset uri
+            List<KeyValuePair<string, string>> parameters = new List<KeyValuePair<string, string>>();
+            parameters.Add(new KeyValuePair<string, string>("userId", user.Id));
+            parameters.Add(new KeyValuePair<string, string>("code", code));
+            QueryString queryString = QueryString.Create(parameters);
+            var callbackUrl = model.ConfirmUrl + queryString.ToUriComponent();
+
+            // Send confirmation email
+            await _emailSender.SendConfirmEmailAsync(model.EmailAddress, callbackUrl);
+
+            // Return result
+            LogInformation(3, "PostResendConfirmationEmailRoute", "Email confirmation message resent.");
+            model.Succeeded = true;
             return Ok(model);
         }
 
@@ -349,7 +420,7 @@ namespace ESP.Identity.Controllers
         /// </returns>
         [HttpPost("api/v1/account/resetPassword", Name = "PostResetPasswordRoute")]
         [AllowAnonymous]
-        public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordViewModel model)
         {
             // Validate the model
             if (!ModelState.IsValid)
@@ -364,7 +435,7 @@ namespace ESP.Identity.Controllers
             }
 
             // Locate user account
-            var user = await _userManager.FindByNameAsync(model.Email);
+            var user = await _userManager.FindByNameAsync(model.EmailAddress);
             if (user == null)
             {
                 model.Succeeded = false;
@@ -395,23 +466,6 @@ namespace ESP.Identity.Controllers
             model.ConfirmPassword = "***";
             model.Code = "***";
             return Ok(model);
-        }
-
-        /// <summary>
-        /// Tests the email send capability
-        /// </summary>
-        /// <returns>
-        /// (200) Ok - User authentication succeeded
-        /// </returns>
-        [HttpGet("api/v1/account/sendEmailTest", Name = "SendEmailTestRoute")]
-        [AllowAnonymous]
-        public async Task<IActionResult> SendEmailTest()
-        {
-            string emailAddress = "rickm@espdevelopment.com";
-            await _emailSender.SendEmailAsync(emailAddress,
-                    "Email Send Test",
-                    $"This is a test of the email sending capability.");
-            return Ok();
         }
 
         #region Helpers

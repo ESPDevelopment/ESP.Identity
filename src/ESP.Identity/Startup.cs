@@ -1,4 +1,8 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using ESP.Identity.Data;
+using ESP.Identity.Extensions;
+using ESP.Identity.Models;
+using ESP.Identity.Services;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -6,19 +10,19 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using ESP.Identity.Data;
-using ESP.Identity.Extensions;
-using ESP.Identity.Models;
-using ESP.Identity.Services;
 
 namespace ESP.Identity
 {
     public class Startup
     {
         public IConfigurationRoot Configuration { get; }
+        public IHostingEnvironment Environment { get; }
 
         public Startup(IHostingEnvironment env)
         {
+            // Save hosting environment
+            Environment = env;
+
             // Initialize configuration builder
             var builder = new ConfigurationBuilder()
                 .SetBasePath(env.ContentRootPath)
@@ -43,6 +47,9 @@ namespace ESP.Identity
         {
             // Add ESP token key
             services.AddESPTokenKey(Configuration);
+
+            // Add email templates
+            services.AddEmailTemplates(Environment);
 
             // Add database context
             services.AddDbContext<ApplicationDbContext>(options =>
