@@ -487,15 +487,17 @@ namespace ESP.Identity.Controllers
                 if (model == null) model = new ResendConfirmationViewModel();
                 model.Succeeded = false;
                 model.Message = "Unable to resend email confirmation message.";
+                LogInformation(3, "PostResendConfirmationEmailRoute", "Model is invalid.");
                 return BadRequest(model);
             }
 
             // Locate account
             var user = await _userManager.FindByNameAsync(model.EmailAddress);
-            if (user == null || !(await _userManager.IsEmailConfirmedAsync(user)))
+            if (user == null)
             {
                 model.Succeeded = false;
                 model.Message = "Unable to resend email confirmation message.";
+                LogInformation(3, "PostResendConfirmationEmailRoute", "Unable to locate account: " + model.EmailAddress + ".");
                 return StatusCode(409, model);
             }
 
