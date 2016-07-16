@@ -281,7 +281,9 @@ namespace ESP.Identity.Controllers
             }
 
             // Return the access token
-            model.access_token = token;
+            model.Succeeded = true;
+            model.Message = "";
+            model.AccessToken = token;
             return Ok(model);
         }
 
@@ -299,6 +301,113 @@ namespace ESP.Identity.Controllers
             await _signInManager.SignOutAsync();
             LogInformation(4, "PostLogoffRoute", "User logged out.");
             return Ok();
+        }
+
+        /// <summary>
+        /// Returns a new access token by validating the previously provided access token
+        /// </summary>
+        /// <param name="model">RefreshTokenViewModel containing the previous access token value.</param>
+        /// <returns>
+        /// (200) Ok - New access token generated
+        /// (400) Bad Request - Input values not valid
+        /// (409) Conflict - New access token could not be generated
+        /// </returns>
+        [AllowAnonymous]
+        [HttpPost("api/v1/account/refreshToken", Name = "PostRefreshTokenRoute")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenViewModel model)
+        {
+            // Validate the model
+            if (!ModelState.IsValid)
+            {
+                if (model == null) model = new RefreshTokenViewModel();
+                model.AccessToken = "***";
+                model.Message = "Invalid email address or password.";
+                model.NewAccessToken = "***";
+                model.Succeeded = false;
+                return BadRequest(model);
+            }
+
+            // Validate authenticity of previous token
+            Microsoft.IdentityModel.Tokens.SecurityToken securityToken;
+            ClaimsPrincipal principal = null;
+            var handler = new JwtSecurityTokenHandler();
+            try
+            {
+                var validationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                {
+                    ValidateLifetime = false,
+                    ValidateAudience = true,
+                    ValidateIssuer = true,
+                    RequireExpirationTime = true,
+                    ValidAudience = _tokenAuthOptions.Audience,
+                    ValidIssuer = _tokenAuthOptions.Issuer,
+                    IssuerSigningKey = _tokenAuthOptions.SigningKey,
+                    RequireSignedTokens = true,
+                    ValidateIssuerSigningKey = true
+                };
+                principal = handler.ValidateToken(model.AccessToken, validationParameters, out securityToken);
+            }
+            catch (Exception e)
+            {
+                LogInformation(9, "PostRefreshTokenRoute", e.Message);
+                model.AccessToken = "***";
+                model.Message = "Invalid access token.";
+                model.NewAccessToken = "***";
+                model.Succeeded = false;
+                return StatusCode(409, model);
+            }
+
+            // Validate that the account exists
+            var user = await _userManager.FindByNameAsync(principal.Identity.Name);
+            if (user == null)
+            {
+                model.AccessToken = "***";
+                model.Message = "Unable to generate refresh token.";
+                model.NewAccessToken = "***";
+                model.Succeeded = false;
+                return StatusCode(409, model);
+            }
+
+            // Require the user to have a confirmed email and are not locked out
+            if (user != null)
+            {
+                // Check for email-confirmed account
+                if (!await _userManager.IsEmailConfirmedAsync(user))
+                {
+                    model.AccessToken = "***";
+                    model.Message = "You must confirm your email address to sign in.";
+                    model.NewAccessToken = "***";
+                    model.Succeeded = false;
+                    return StatusCode(409, model);
+                }
+
+                // Check for locked out account
+                if (await _userManager.IsLockedOutAsync(user))
+                {
+                    model.AccessToken = "***";
+                    model.Message = "Account has been locked out.";
+                    model.NewAccessToken = "***";
+                    model.Succeeded = false;
+                    return StatusCode(409, model);
+                }
+            }
+
+            // Construct a security token string
+            string token = await GetSecurityTokenAsString(user.Email);
+            if (token.Equals(string.Empty))
+            {
+                model.AccessToken = "***";
+                model.Message = "An unexpected error occurred during sign in.";
+                model.NewAccessToken = "***";
+                model.Succeeded = false;
+                return BadRequest(model);
+            }
+
+            // Return the access token
+            model.Message = "";
+            model.NewAccessToken = token;
+            model.Succeeded = true;
+            return Ok(model);
         }
 
         /// <summary>

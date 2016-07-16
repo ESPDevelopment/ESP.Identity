@@ -15,6 +15,6 @@ namespace ESP.Identity.Models.AccountViewModels
         [Display(Name = "Remember me?")]
         public bool RememberMe { get; set; }
 
-        public string access_token { get; set; }
+        public string AccessToken { get; set; }
     }
 }
