@@ -1,9 +1,6 @@
-﻿using ESP.Identity.Security;
-using ESP.Identity.Services;
+﻿using ESP.Identity.Services;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
 
 namespace ESP.Identity.Extensions
 {
@@ -31,27 +28,6 @@ namespace ESP.Identity.Extensions
 
             // Create email template singleton
             services.AddSingleton<EmailTemplates>(emailTemplates);
-
-            // Return result
-            return services;
-        }
-
-        public static IServiceCollection AddESPTokenKey(this IServiceCollection services, IConfigurationRoot configuration)
-        {
-            // Create security key
-            RsaSecurityKey key = RSAKeyUtils.GetDecodedKey(configuration["TokenAuth:Secret"]);
-
-            // Create token auth options
-            TokenAuthOptions tokenAuthOptions = new TokenAuthOptions()
-            {
-                Audience = TokenAudience,
-                Issuer = TokenIssuer,
-                SigningKey = key,
-                SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256Signature)
-            };
-
-            // Add token auth instance
-            services.AddSingleton<TokenAuthOptions>(tokenAuthOptions);
 
             // Return result
             return services;

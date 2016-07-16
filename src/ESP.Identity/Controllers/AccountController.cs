@@ -1,7 +1,7 @@
 ﻿using ESP.Identity.Models;
 using ESP.Identity.Models.AccountViewModels;
-using ESP.Identity.Security;
 using ESP.Identity.Services;
+using ESP.Security.Token;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;

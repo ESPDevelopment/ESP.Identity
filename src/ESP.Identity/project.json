@@ -51,7 +51,8 @@
     "SendGrid.NetCore": "1.0.0-rtm-00002",
     "Microsoft.IdentityModel.Tokens": "5.0.0",
     "System.IdentityModel.Tokens.Jwt": "5.0.0",
-    "Microsoft.AspNetCore.Authentication.JwtBearer": "1.0.0"
+    "Microsoft.AspNetCore.Authentication.JwtBearer": "1.0.0",
+    "ESP.Security": "1.0.0-*"
   },
 
   "tools": {

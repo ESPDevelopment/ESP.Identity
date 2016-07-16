@@ -1,8 +1,9 @@
 ﻿using ESP.Identity.Data;
 using ESP.Identity.Extensions;
 using ESP.Identity.Models;
-using ESP.Identity.Security;
 using ESP.Identity.Services;
+using ESP.Security.Extensions;
+using ESP.Security.Token;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;

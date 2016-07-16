@@ -12,6 +12,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "ESP.Identity", "src\ESP.Identity\ESP.Identity.xproj", "{EDB3273C-8C84-4F7D-8424-28AB26C6ECF4}"
 EndProject
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "ESP.Security", "..\ESP.Security\src\ESP.Security\ESP.Security.xproj", "{31C80867-067E-4F77-B0EE-B818532F6982}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -22,11 +24,16 @@ Global
 		{EDB3273C-8C84-4F7D-8424-28AB26C6ECF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EDB3273C-8C84-4F7D-8424-28AB26C6ECF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EDB3273C-8C84-4F7D-8424-28AB26C6ECF4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31C80867-067E-4F77-B0EE-B818532F6982}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31C80867-067E-4F77-B0EE-B818532F6982}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31C80867-067E-4F77-B0EE-B818532F6982}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31C80867-067E-4F77-B0EE-B818532F6982}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{EDB3273C-8C84-4F7D-8424-28AB26C6ECF4} = {CD74745F-4820-41AA-97FF-4B7B6525398E}
+		{31C80867-067E-4F77-B0EE-B818532F6982} = {CD74745F-4820-41AA-97FF-4B7B6525398E}
 	EndGlobalSection
 EndGlobal
