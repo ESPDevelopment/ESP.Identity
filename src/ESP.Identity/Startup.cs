@@ -1,7 +1,10 @@
 ﻿using ESP.Identity.Data;
 using ESP.Identity.Extensions;
 using ESP.Identity.Models;
+using ESP.Identity.Security;
 using ESP.Identity.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -48,6 +51,14 @@ namespace ESP.Identity
             // Add ESP token key
             services.AddESPTokenKey(Configuration);
 
+            // Add Bearer authorization
+            services.AddAuthorization(auth =>
+            {
+                auth.AddPolicy("Bearer", new AuthorizationPolicyBuilder()
+                    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+                    .RequireAuthenticatedUser().Build());
+            });
+
             // Add email templates
             services.AddEmailTemplates(Environment);
 
@@ -82,7 +93,7 @@ namespace ESP.Identity
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory, TokenAuthOptions tokenAuthOptions)
         {
             // Configure logging
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
@@ -109,6 +120,12 @@ namespace ESP.Identity
                 serviceScope.ServiceProvider.GetService<ApplicationDbContext>()
                     .Database.Migrate();
             }
+
+            // Use ESP error handler
+            app.UseESPExceptionHandler(loggerFactory);
+
+            // Use ESP token authentication
+            app.UseESPTokenAuth(tokenAuthOptions);
 
             // Configure identity service
             app.UseIdentity();

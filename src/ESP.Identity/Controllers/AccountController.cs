@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 namespace ESP.Identity.Controllers
 {
     [RequireHttps]
-    [Authorize]
+    [Authorize("Bearer")]
     public class AccountController : Controller
     {
         private readonly IEmailSender _emailSender;
